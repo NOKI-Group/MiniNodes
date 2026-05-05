@@ -1,0 +1,29 @@
+@import "tailwindcss";
+@import "@vue-flow/core/dist/style.css";
+@import "@vue-flow/core/dist/theme-default.css";
+
+@theme inline {
+    --color-background: oklch(0.145 0 0);
+    --color-foreground: oklch(0.985 0 0);
+    --color-card: oklch(0.205 0 0);
+    --color-card-foreground: oklch(0.985 0 0);
+    --color-border: oklch(1 0 0 / 10%);
+    --color-input: oklch(1 0 0 / 15%);
+    --color-primary: oklch(0.598 0.15 161.98);
+    --color-primary-foreground: oklch(0.145 0 0);
+    --color-muted: oklch(0.269 0 0);
+    --color-muted-foreground: oklch(0.708 0 0);
+    --color-destructive: oklch(0.704 0.191 22.216);
+}
+
+@layer base {
+    body {
+        background-color: oklch(0.145 0 0);
+        color: oklch(0.985 0 0);
+    }
+}
+
+.vue-flow { background: oklch(0.145 0 0); }
+.vue-flow__controls { background: oklch(0.205 0 0); border-color: oklch(1 0 0 / 10%); }
+.vue-flow__controls button { background: oklch(0.205 0 0); color: oklch(0.985 0 0); border-color: oklch(1 0 0 / 10%); }
+.vue-flow__minimap { background: oklch(0.205 0 0); }

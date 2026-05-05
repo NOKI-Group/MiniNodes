@@ -1,0 +1,40 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./backend/src:/app/src
+    environment:
+      - DB_USER=mininodes
+      - DB_PASSWORD=mininodes
+      - DB_NAME=mininodes
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5174:5173"
+    volumes:
+      - ./frontend/src:/app/src
+
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: mininodes
+      POSTGRES_PASSWORD: mininodes
+      POSTGRES_DB: mininodes
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mininodes"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:
