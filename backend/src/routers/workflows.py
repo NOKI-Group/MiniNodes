@@ -5,7 +5,8 @@ from typing import List
 
 from src.database import get_db
 from src.models.workflow import Workflow
-from src.schemas import WorkflowCreate, WorkflowUpdate, WorkflowRead
+from src.models.execution import Execution
+from src.schemas import WorkflowCreate, WorkflowUpdate, WorkflowRead, ExecutionRead
 from src.services.execution_engine import engine as exec_engine
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
@@ -60,15 +61,23 @@ def delete_workflow(workflow_id: str, db: Session = Depends(get_db)):
     db.commit()
 
 
-@router.post("/{workflow_id}/execute")
+@router.post("/{workflow_id}/execute", response_model=ExecutionRead)
 async def execute_workflow(workflow_id: str, db: Session = Depends(get_db)):
     wf = db.query(Workflow).filter(Workflow.id == workflow_id).first()
     if not wf:
         raise HTTPException(status_code=404, detail="Workflow not found")
+
+    # Run synchronously — engine waits until all nodes are done
     execution_id = await exec_engine.run(
         workflow_id=wf.id,
         graph=wf.graph,
         trigger="manual",
         input_data={},
     )
-    return {"execution_id": execution_id}
+
+    # Fetch the completed execution from DB and return it directly
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(status_code=500, detail="Execution not found after run")
+
+    return execution

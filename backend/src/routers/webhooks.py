@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from fastapi import Depends
 
 from src.database import get_db
 from src.models.workflow import Workflow
+from src.models.execution import Execution
 from src.services.execution_engine import engine as exec_engine
 
 router = APIRouter(tags=["webhooks"])
@@ -40,4 +42,21 @@ async def receive_webhook(path: str, request: Request, db: Session = Depends(get
         input_data=input_data,
     )
 
-    return {"execution_id": execution_id, "status": "accepted"}
+    # Fetch completed execution
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(status_code=500, detail="Execution not found after run")
+
+    # Find output node result (core.output nodes produce {"_output": true, "data": ...})
+    node_results = execution.node_results or {}
+    for result in node_results.values():
+        out = result.get("output")
+        if isinstance(out, dict) and out.get("_output"):
+            return JSONResponse(content=out.get("data"))
+
+    # No output node — return all node results as fallback
+    return JSONResponse(content={
+        "execution_id": execution_id,
+        "status": execution.status,
+        "node_results": node_results,
+    })

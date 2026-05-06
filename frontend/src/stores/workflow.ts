@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { workflowsApi } from '@/api/modules'
-import type { Workflow } from '@/types'
+import type { Workflow, Execution } from '@/types'
 
 export const useWorkflowStore = defineStore('workflow', () => {
     const workflows = ref<Workflow[]>([])
@@ -36,8 +36,12 @@ export const useWorkflowStore = defineStore('workflow', () => {
     }
 
     async function toggle(id: string, active: boolean) {
-        const { data } = await workflowsApi.update(id, { active })
+        // Optimistisch sofort lokal updaten
+        if (current.value?.id === id) current.value.active = active
         const idx = workflows.value.findIndex(w => w.id === id)
+        if (idx !== -1) workflows.value[idx].active = active
+
+        const { data } = await workflowsApi.update(id, { active })
         if (idx !== -1) workflows.value[idx] = data
         if (current.value?.id === id) current.value = data
     }
@@ -47,7 +51,8 @@ export const useWorkflowStore = defineStore('workflow', () => {
         workflows.value = workflows.value.filter(w => w.id !== id)
     }
 
-    async function execute(id: string) {
+    // Returns the full Execution object now (backend runs synchronously)
+    async function execute(id: string): Promise<Execution> {
         const { data } = await workflowsApi.execute(id)
         return data
     }

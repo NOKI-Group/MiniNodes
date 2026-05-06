@@ -15,8 +15,51 @@ class WebhookTriggerNode(BaseNode):
     fields = []
 
     async def execute(self, config: dict, input_data: Any) -> Any:
-        # Input data IS the webhook payload — just pass it through
         return input_data
+
+
+class ManualTriggerNode(BaseNode):
+    type = "core.manual_trigger"
+    label = "Manual Trigger"
+    description = "Manually start the workflow"
+    color = "#10b981"
+    icon = "ri-play-circle-line"
+    inputs = []
+    outputs = [{"id": "out", "label": "Output"}]
+    fields = [
+        {"key": "payload", "label": "Test Payload (JSON)", "type": "json",
+         "default": "{}", "placeholder": "{\"hello\": \"world\"}"},
+    ]
+
+    async def execute(self, config: dict, input_data: Any) -> Any:
+        payload = config.get("payload", {})
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except Exception:
+                payload = {}
+        return payload if payload else input_data
+
+
+class OutputNode(BaseNode):
+    type = "core.output"
+    label = "Output"
+    description = "Marks the final output of the workflow"
+    color = "#0ea5e9"
+    icon = "ri-download-line"
+    inputs = [{"id": "in", "label": "Input"}]
+    outputs = []
+    fields = [
+        {"key": "label", "label": "Output Label", "type": "text",
+         "placeholder": "Result", "default": "Result"},
+    ]
+
+    async def execute(self, config: dict, input_data: Any) -> Any:
+        return {
+            "_output": True,
+            "label": config.get("label", "Result"),
+            "data": input_data,
+        }
 
 
 class HttpRequestNode(BaseNode):
@@ -85,7 +128,6 @@ class IfElseNode(BaseNode):
         operator = config.get("operator", "equals")
         value = config.get("value", "")
 
-        # Resolve dot-notation field from input_data
         actual = input_data
         for key in field.split("."):
             if isinstance(actual, dict):
@@ -94,7 +136,6 @@ class IfElseNode(BaseNode):
                 actual = None
                 break
 
-        # Evaluate condition
         result = False
         if operator == "equals":
             result = str(actual) == str(value)
@@ -141,7 +182,6 @@ class TransformNode(BaseNode):
 
         def resolve(val):
             if isinstance(val, str) and "{{" in val:
-                # Simple template: {{field.subfield}}
                 key = val.strip("{} ")
                 result = input_data
                 for part in key.split("."):
@@ -196,7 +236,6 @@ class MergeNode(BaseNode):
     fields = []
 
     async def execute(self, config: dict, input_data: Any) -> Any:
-        # input_data is expected to be {"a": ..., "b": ...} when merging
         if isinstance(input_data, dict) and "a" in input_data and "b" in input_data:
             a = input_data["a"] or {}
             b = input_data["b"] or {}
@@ -208,6 +247,8 @@ class MergeNode(BaseNode):
 # Register all core nodes
 for node_class in [
     WebhookTriggerNode,
+    ManualTriggerNode,
+    OutputNode,
     HttpRequestNode,
     IfElseNode,
     TransformNode,
