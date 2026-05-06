@@ -1,14 +1,31 @@
 <template>
     <div class="flex flex-col h-screen bg-background text-foreground">
 
+        <!-- Unsaved changes leave dialog -->
+        <AlertDialog v-model:open="showLeaveDialog">
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Ungespeicherte Änderungen</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Du hast ungespeicherte Änderungen an <span class="font-medium text-foreground">{{ workflow?.name }}</span>. Möchtest du sie speichern, bevor du die Seite verlässt?
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel @click="discardAndLeave">Verwerfen</AlertDialogCancel>
+                    <AlertDialogAction @click="saveAndLeave">Speichern & Verlassen</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
         <!-- Topbar -->
         <div class="flex items-center justify-between px-4 h-12 border-b border-border shrink-0">
             <div class="flex items-center gap-3">
-                <router-link to="/" class="text-muted-foreground hover:text-foreground">
+                <button @click="handleBack" class="text-muted-foreground hover:text-foreground">
                     <RiArrowLeftLine class="size-4" />
-                </router-link>
+                </button>
                 <span class="text-sm font-semibold">{{ workflow?.name ?? 'Loading…' }}</span>
                 <span v-if="store.saving" class="text-xs text-muted-foreground">Saving…</span>
+                <span v-else-if="isDirty" class="text-xs text-muted-foreground">● Unsaved changes</span>
             </div>
 
             <div class="flex items-center gap-2">
@@ -21,7 +38,7 @@
                     <RiCloseLine class="size-3.5" />
                 </Button>
 
-                <Button @click="saveGraph" variant="outline">
+                <Button @click="saveGraph" variant="outline" :disabled="store.saving">
                     <RiSaveLine class="size-3.5" />
                     Save
                 </Button>
@@ -59,6 +76,8 @@
                     @node-click="onNodeClick"
                     @pane-click="onPaneClick"
                     @connect="onConnect"
+                    @nodes-change="markDirty"
+                    @edges-change="markDirty"
                 >
                     <Background class="bg-neutral-100" />
                     <Controls />
@@ -69,7 +88,7 @@
                 <div v-if="lastExecution" class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2 rounded-full border border-border bg-card shadow-lg text-xs">
                     <span class="flex items-center gap-1.5">
                         <span class="size-2 rounded-full"
-                            :class="lastExecution.status === 'success' ? 'bg-green-500' : 'bg-red-500'" />
+                              :class="lastExecution.status === 'success' ? 'bg-green-500' : 'bg-red-500'" />
                         {{ lastExecution.status === 'success' ? 'Execution successful' : 'Execution failed' }}
                     </span>
                     <span class="text-muted-foreground">·</span>
@@ -82,7 +101,7 @@
             <!-- Right panel: execution result OR node config -->
             <template v-if="selectedNode">
                 <div v-if="lastExecution && lastExecution.node_results[selectedNode.id]"
-                    class="w-80 bg-card border-l border-border flex flex-col h-full overflow-hidden">
+                     class="w-80 bg-card border-l border-border flex flex-col h-full overflow-hidden">
                     <div class="p-4 border-b border-border flex items-center justify-between shrink-0">
                         <div>
                             <p class="text-sm font-semibold">{{ selectedNode.data?.label }}</p>
@@ -90,7 +109,7 @@
                         </div>
                         <div class="flex items-center gap-2">
                             <span class="text-xs px-1.5 py-0.5 rounded font-medium"
-                                :class="lastExecution.node_results[selectedNode.id].error
+                                  :class="lastExecution.node_results[selectedNode.id].error
                                     ? 'bg-red-500/10 text-red-400'
                                     : 'bg-green-500/10 text-green-400'">
                                 {{ lastExecution.node_results[selectedNode.id].error ? 'Error' : 'Success' }}
@@ -113,37 +132,52 @@
                     </div>
 
                     <div class="p-3 border-t border-border shrink-0">
-                        <button @click="showConfig = !showConfig"
-                            class="w-full flex items-center justify-between text-xs text-muted-foreground hover:text-foreground">
-                            <span>{{ showConfig ? 'Hide' : 'Show' }} Node Config</span>
-                            <RiArrowDownSLine class="size-3.5 transition-transform" :class="showConfig ? 'rotate-180' : ''" />
+                        <button @click="openConfigDialog(selectedNode)"
+                                class="w-full flex items-center justify-between text-xs text-muted-foreground hover:text-foreground">
+                            <span>Edit Node Config</span>
+                            <RiArrowDownSLine class="size-3.5" />
                         </button>
-                        <div v-if="showConfig" class="mt-3">
-                            <NodeConfigFields
-                                :definition="nodesStore.getDefinition(selectedNode.type)"
-                                :config="selectedNode.data?.config ?? {}"
-                                @update="onConfigUpdate"
-                            />
-                        </div>
                     </div>
                 </div>
-
-                <NodeSidebar
-                    v-else
-                    :node-id="selectedNode.id"
-                    :node-type="selectedNode.type"
-                    :config="selectedNode.data?.config ?? {}"
-                    @close="selectedNode = null"
-                    @update="onConfigUpdate"
-                />
             </template>
         </div>
+
+        <!-- Node Config Dialog -->
+        <NodeConfigDialog
+            v-if="configDialogNode"
+            v-model:open="configDialogOpen"
+            :node-id="configDialogNode.id"
+            :node-type="configDialogNode.type"
+            :config="configDialogNode.data?.config ?? {}"
+            @update="onConfigUpdate"
+        />
+
+        <!-- Delete node confirmation -->
+        <AlertDialog v-model:open="showDeleteNode">
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Node</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Are you sure you want to delete <span class="font-medium text-foreground">{{ pendingDeleteNode?.data?.label }}</span>? All connected edges will also be removed.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                        class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        @click="confirmDeleteNode"
+                    >
+                        Delete
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, shallowRef } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { VueFlow, useVueFlow, type Connection, addEdge } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -163,14 +197,24 @@ import { useWorkflowStore } from '@/stores/workflow'
 import { useNodesStore } from '@/stores/nodes'
 import MiniNode from '@/components/canvas/MiniNode.vue'
 import NodePalette from '@/components/canvas/NodePalette.vue'
-import NodeSidebar from '@/components/canvas/NodeSidebar.vue'
-import NodeConfigFields from '@/components/canvas/NodeConfigFields.vue'
+import NodeConfigDialog from '@/components/canvas/NodeConfigDialog.vue'
 import type { Execution } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 const route = useRoute()
+const router = useRouter()
 const store = useWorkflowStore()
 const nodesStore = useNodesStore()
 
@@ -178,17 +222,36 @@ const workflow = computed(() => store.current)
 const nodes = ref<any[]>([])
 const edges = ref<any[]>([])
 const selectedNode = ref<any>(null)
-const showConfig = ref(false)
 const running = ref(false)
 const lastExecution = ref<Execution | null>(null)
 const canvasWrapper = ref<HTMLElement | null>(null)
 const nodeTypes = shallowRef<Record<string, any>>({})
 
-const webhookUrl = computed(() =>
-    workflow.value?.webhook_path
-        ? `http://${window.location.hostname}:8001${workflow.value.webhook_path}`
-        : ''
-)
+// Config dialog state
+const configDialogOpen = ref(false)
+const configDialogNode = ref<any>(null)
+
+// Delete node state
+const showDeleteNode = ref(false)
+const pendingDeleteNode = ref<any>(null)
+
+// Leave guard state
+const isDirty = ref(false)
+const showLeaveDialog = ref(false)
+let pendingLeaveResolve: ((value: boolean) => void) | null = null
+
+const webhookUrl = computed(() => {
+    if (!workflow.value?.webhook_path) return ''
+
+    const webhookNode = nodes.value.find(n => n.type === 'core.webhook_trigger')
+    const customPath = webhookNode?.data?.config?.custom_path?.trim().replace(/^\/+/, '')
+
+    const path = customPath
+        ? `/webhook/${customPath}`
+        : workflow.value.webhook_path
+
+    return `http://${window.location.hostname}:8001${path}`
+})
 
 const workflowActive = computed({
     get: () => workflow.value?.active ?? false,
@@ -206,7 +269,14 @@ const { project } = useVueFlow()
 onMounted(async () => {
     await nodesStore.load()
     const wf = await store.load(route.params.id as string)
-    nodes.value = wf.graph?.nodes ?? []
+    nodes.value = (wf.graph?.nodes ?? []).map((n: any) => ({
+        ...n,
+        data: {
+            ...n.data,
+            onEdit: (id: string) => openConfigDialog(nodes.value.find(x => x.id === id)),
+            onDelete: (id: string) => requestDeleteNode(nodes.value.find(x => x.id === id)),
+        }
+    }))
     edges.value = wf.graph?.edges ?? []
 
     const types: Record<string, any> = {}
@@ -214,6 +284,42 @@ onMounted(async () => {
     nodeTypes.value = types
 })
 
+// Intercept any Vue Router navigation away from this page
+onBeforeRouteLeave(() => {
+    if (!isDirty.value) return true
+
+    return new Promise<boolean>((resolve) => {
+        pendingLeaveResolve = resolve
+        showLeaveDialog.value = true
+    })
+})
+
+function markDirty() {
+    isDirty.value = true
+}
+
+// Back button — router.push triggers onBeforeRouteLeave automatically
+function handleBack() {
+    router.push('/')
+}
+
+async function saveAndLeave() {
+    showLeaveDialog.value = false
+    await saveGraph()
+    if (pendingLeaveResolve) {
+        pendingLeaveResolve(true)
+        pendingLeaveResolve = null
+    }
+}
+
+function discardAndLeave() {
+    showLeaveDialog.value = false
+    isDirty.value = false
+    if (pendingLeaveResolve) {
+        pendingLeaveResolve(true)
+        pendingLeaveResolve = null
+    }
+}
 
 function nodeDisplayOutput(output: any) {
     if (output && typeof output === 'object' && output._output === true) {
@@ -221,12 +327,13 @@ function nodeDisplayOutput(output: any) {
     }
     return output
 }
+
 function onConnect(connection: Connection) {
     edges.value = addEdge({ ...connection, type: 'smoothstep' }, edges.value)
+    markDirty()
 }
 
 function onNodeClick({ node }: { event: MouseEvent; node: any }) {
-    showConfig.value = false
     selectedNode.value = node
 }
 
@@ -234,12 +341,41 @@ function onPaneClick() {
     selectedNode.value = null
 }
 
+function openConfigDialog(node: any) {
+    if (!node) return
+    configDialogNode.value = node
+    configDialogOpen.value = true
+}
+
+function requestDeleteNode(node: any) {
+    if (!node) return
+    pendingDeleteNode.value = node
+    showDeleteNode.value = true
+}
+
+function confirmDeleteNode() {
+    if (!pendingDeleteNode.value) return
+    const id = pendingDeleteNode.value.id
+    nodes.value = nodes.value.filter(n => n.id !== id)
+    edges.value = edges.value.filter(e => e.source !== id && e.target !== id)
+    if (selectedNode.value?.id === id) selectedNode.value = null
+    if (configDialogNode.value?.id === id) {
+        configDialogOpen.value = false
+        configDialogNode.value = null
+    }
+    pendingDeleteNode.value = null
+    markDirty()
+}
+
 function onConfigUpdate(config: Record<string, any>) {
-    if (!selectedNode.value) return
-    const idx = nodes.value.findIndex(n => n.id === selectedNode.value.id)
+    if (!configDialogNode.value) return
+    const id = configDialogNode.value.id
+    const idx = nodes.value.findIndex(n => n.id === id)
     if (idx !== -1) {
         nodes.value[idx] = { ...nodes.value[idx], data: { ...nodes.value[idx].data, config } }
-        selectedNode.value = nodes.value[idx]
+        configDialogNode.value = nodes.value[idx]
+        if (selectedNode.value?.id === id) selectedNode.value = nodes.value[idx]
+        markDirty()
     }
 }
 
@@ -255,17 +391,29 @@ function onDrop(event: DragEvent) {
     const config: Record<string, any> = {}
     def?.fields?.forEach(f => { if (f.default !== undefined) config[f.key] = f.default })
 
-    nodes.value.push({
+    const newNode = {
         id: `${type}-${Date.now()}`,
         type,
         position,
-        data: { label: label ?? type, config },
-    })
+        data: {
+            label: label ?? type,
+            config,
+            onEdit: (id: string) => openConfigDialog(nodes.value.find(x => x.id === id)),
+            onDelete: (id: string) => requestDeleteNode(nodes.value.find(x => x.id === id)),
+        },
+    }
+    nodes.value.push(newNode)
+    markDirty()
 }
 
 async function saveGraph() {
     if (!workflow.value) return
-    await store.save(workflow.value.id, { nodes: nodes.value, edges: edges.value })
+    const cleanNodes = nodes.value.map(n => {
+        const { onEdit, onDelete, ...rest } = n.data ?? {}
+        return { ...n, data: rest }
+    })
+    await store.save(workflow.value.id, { nodes: cleanNodes, edges: edges.value })
+    isDirty.value = false
 }
 
 async function toggleActive(value: boolean) {
@@ -279,11 +427,9 @@ async function runManual() {
     lastExecution.value = null
     try {
         await saveGraph()
-        // execute() now returns the full Execution object directly
         const execution = await store.execute(workflow.value.id)
         lastExecution.value = execution
 
-        // Auto-select output node first, then last node, then first node
         if (execution.node_results) {
             const resultIds = Object.keys(execution.node_results)
             const outputNode = nodes.value.find(n =>

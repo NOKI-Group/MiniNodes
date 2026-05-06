@@ -12,7 +12,15 @@ class WebhookTriggerNode(BaseNode):
     icon = "ri-webhook-line"
     inputs = []
     outputs = [{"id": "out", "label": "Output"}]
-    fields = []
+    fields = [
+        {
+            "key": "custom_path",
+            "label": "Custom Path (optional)",
+            "type": "text",
+            "placeholder": "my-webhook  →  /webhook/my-webhook",
+            "default": "",
+        },
+    ]
 
     async def execute(self, config: dict, input_data: Any) -> Any:
         return input_data
