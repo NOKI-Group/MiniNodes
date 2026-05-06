@@ -60,7 +60,7 @@
                     @pane-click="onPaneClick"
                     @connect="onConnect"
                 >
-                    <Background />
+                    <Background class="bg-neutral-100" />
                     <Controls />
                     <MiniMap />
                 </VueFlow>
