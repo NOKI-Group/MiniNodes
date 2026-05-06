@@ -12,7 +12,7 @@
                 @dragstart="onDragStart($event, def)"
             >
                 <div class="w-6 h-6 rounded flex items-center justify-center shrink-0" :style="{ backgroundColor: def.color }">
-                    <i :class="[def.icon, 'text-white text-xs']" />
+                    <component :is="resolveIcon(def.icon)" class="text-white size-3.5 shrink-0" />
                 </div>
                 <div class="min-w-0">
                     <p class="text-xs font-medium truncate">{{ def.label }}</p>
@@ -25,11 +25,20 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import * as RemixIcons from '@remixicon/vue'
 import { useNodesStore } from '@/stores/nodes'
 import type { NodeDefinition } from '@/types'
 
 const nodesStore = useNodesStore()
 const definitions = computed(() => nodesStore.definitions)
+
+function resolveIcon(icon: string) {
+    const name = icon
+        .split('-')
+        .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+        .join('')
+    return (RemixIcons as Record<string, unknown>)[name] ?? RemixIcons.RiNodeTree
+}
 
 function onDragStart(event: DragEvent, def: NodeDefinition) {
     event.dataTransfer?.setData('application/mininodes-type', def.type)

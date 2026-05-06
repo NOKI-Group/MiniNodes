@@ -6,7 +6,7 @@
                 <p class="text-xs text-muted-foreground mt-0.5">{{ definition?.description }}</p>
             </div>
             <button @click="$emit('close')" class="text-muted-foreground hover:text-foreground">
-                <i class="ri-close-line text-lg" />
+                <RiCloseLine class="size-5" />
             </button>
         </div>
 
@@ -68,6 +68,7 @@
 
 <script setup lang="ts">
 import { reactive, watch, computed } from 'vue'
+import { RiCloseLine } from '@remixicon/vue'
 import { useNodesStore } from '@/stores/nodes'
 
 const props = defineProps<{

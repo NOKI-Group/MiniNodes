@@ -5,7 +5,10 @@
         :style="{ backgroundColor: definition?.color ?? '#6366f1' }"
     >
         <div class="px-3 py-2 flex items-center gap-2">
-            <i :class="[definition?.icon ?? 'ri-node-tree', 'text-white/80 text-sm']" />
+            <component
+                :is="resolvedIcon"
+                class="text-white/80 size-4 shrink-0"
+            />
             <span class="text-white text-xs font-semibold truncate">{{ data.label }}</span>
         </div>
 
@@ -32,6 +35,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
+import * as RemixIcons from '@remixicon/vue'
 import { useNodesStore } from '@/stores/nodes'
 
 const props = defineProps<{
@@ -43,4 +47,17 @@ const props = defineProps<{
 
 const nodesStore = useNodesStore()
 const definition = computed(() => nodesStore.getDefinition(props.type))
+
+// ri-node-tree → RiNodeTree
+function toComponentName(icon: string): string {
+    return icon
+        .split('-')
+        .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+        .join('')
+}
+
+const resolvedIcon = computed(() => {
+    const name = toComponentName(definition.value?.icon ?? 'ri-node-tree')
+    return (RemixIcons as Record<string, unknown>)[name] ?? RemixIcons.RiNodeTree
+})
 </script>

@@ -5,7 +5,7 @@
         <div class="flex items-center justify-between px-4 h-12 border-b border-border shrink-0">
             <div class="flex items-center gap-3">
                 <router-link to="/" class="text-muted-foreground hover:text-foreground">
-                    <i class="ri-arrow-left-line" />
+                    <RiArrowLeftLine class="size-4" />
                 </router-link>
                 <span class="text-sm font-semibold">{{ workflow?.name ?? 'Loading…' }}</span>
                 <span v-if="store.saving" class="text-xs text-muted-foreground">Saving…</span>
@@ -29,7 +29,7 @@
                     @click="runManual"
                     :disabled="running"
                 >
-                    <i class="ri-play-line" />
+                    <RiPlayLine class="size-3.5" />
                     {{ running ? 'Running…' : 'Run' }}
                 </button>
 
@@ -37,7 +37,7 @@
                     class="flex items-center gap-1.5 px-3 h-7 rounded-md bg-primary text-primary-foreground hover:bg-primary/80 text-xs font-medium"
                     @click="saveGraph"
                 >
-                    <i class="ri-save-line" />
+                    <RiSaveLine class="size-3.5" />
                     Save
                 </button>
             </div>
@@ -45,11 +45,11 @@
 
         <!-- Webhook URL bar -->
         <div v-if="workflow?.webhook_path" class="flex items-center gap-2 px-4 py-1.5 bg-muted/50 border-b border-border text-xs">
-            <i class="ri-webhook-line text-muted-foreground" />
+            <RiWebhookLine class="size-3.5 text-muted-foreground" />
             <span class="text-muted-foreground">Webhook:</span>
             <code class="font-mono text-foreground">{{ webhookUrl }}</code>
             <button @click="copyWebhook" class="text-muted-foreground hover:text-foreground ml-1">
-                <i class="ri-clipboard-line" />
+                <RiClipboardLine class="size-3.5" />
             </button>
         </div>
 
@@ -119,6 +119,13 @@ import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
+import {
+    RiArrowLeftLine,
+    RiPlayLine,
+    RiSaveLine,
+    RiWebhookLine,
+    RiClipboardLine,
+} from '@remixicon/vue'
 import { useWorkflowStore } from '@/stores/workflow'
 import { useNodesStore } from '@/stores/nodes'
 import { executionsApi } from '@/api/modules'
