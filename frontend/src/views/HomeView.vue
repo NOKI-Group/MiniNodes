@@ -1,9 +1,11 @@
 <template>
-    <div class="min-h-screen bg-background text-foreground">
-        <div class="max-w-4xl mx-auto p-6 space-y-4">
+    <div class="min-h-screen bg-background text-foreground flex flex-col">
+        <div class="max-w-4xl w-full mx-auto p-6 space-y-4 flex-1 flex flex-col">
+
             <div v-if="loading" class="text-sm text-muted-foreground">Loading…</div>
 
-            <div v-else-if="workflows.length === 0" class="flex items-center justify-center py-24">
+            <!-- Empty state -->
+            <div v-else-if="workflows.length === 0" class="flex-1 flex items-center justify-center">
                 <Empty>
                     <EmptyHeader>
                         <EmptyMedia variant="icon">
@@ -15,9 +17,7 @@
                         </EmptyDescription>
                     </EmptyHeader>
                     <EmptyContent>
-                        <div class="flex gap-2">
-                            <Button @click="createNew">Create Workflow</Button>
-                        </div>
+                        <Button @click="createNew">Create Workflow</Button>
                     </EmptyContent>
                     <Button variant="link" as-child class="text-muted-foreground" size="sm">
                         <a href="#">
@@ -27,7 +27,20 @@
                 </Empty>
             </div>
 
+            <!-- Workflow list -->
             <div v-else class="space-y-2">
+                <!-- Header -->
+                <div class="flex items-center justify-between">
+                    <h1 class="text-sm font-semibold flex items-center gap-2">
+                        Workflows
+                        <span class="text-xs font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md">{{ workflows.length }}</span>
+                    </h1>
+                    <Button size="sm" @click="createNew">
+                        <RiAddLine class="size-3.5" />
+                        New Workflow
+                    </Button>
+                </div>
+
                 <div
                     v-for="wf in workflows"
                     :key="wf.id"
@@ -35,7 +48,7 @@
                     @click="router.push(`/editor/${wf.id}`)"
                 >
                     <div class="flex items-center gap-3">
-                        <div class="w-2 h-2 rounded-full" :class="wf.active ? 'bg-green-500' : 'bg-muted-foreground'" />
+                        <div class="w-2 h-2 rounded-full shrink-0" :class="wf.active ? 'bg-green-500' : 'bg-muted-foreground'" />
                         <div>
                             <p class="text-sm font-medium">{{ wf.name }}</p>
                             <p class="text-xs text-muted-foreground">
@@ -44,41 +57,85 @@
                             </p>
                         </div>
                     </div>
-                    <button
-                        class="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                        @click.stop="deleteWorkflow(wf.id)"
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        class="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        @click.stop="openDelete(wf)"
                     >
                         <RiDeleteBinLine class="size-4" />
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>
 
+        <!-- Delete alert dialog -->
+        <AlertDialog v-model:open="showDelete">
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Workflow</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Are you sure you want to delete <span class="font-medium text-foreground">{{ pendingDelete?.name }}</span>? This action cannot be undone.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                        class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        @click="confirmDelete"
+                    >
+                        Delete
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
         <!-- Create dialog -->
-        <div v-if="showCreate" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-            <div class="bg-card rounded-xl border border-border p-6 w-full max-w-sm space-y-4">
-                <p class="text-sm font-semibold">New Workflow</p>
-                <input
+        <Dialog v-model:open="showCreate">
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>New Workflow</DialogTitle>
+                    <DialogDescription>Give your workflow a name to get started.</DialogDescription>
+                </DialogHeader>
+                <Input
                     v-model="newName"
-                    class="w-full h-8 rounded-md border border-input bg-background px-2 text-sm"
                     placeholder="My Workflow"
                     @keydown.enter="confirmCreate"
                     autofocus
                 />
-                <div class="flex justify-end gap-2">
-                    <Button variant="outline" size="sm" @click="showCreate = false">Cancel</Button>
-                    <Button size="sm" @click="confirmCreate">Create</Button>
-                </div>
-            </div>
-        </div>
+                <DialogFooter>
+                    <Button variant="outline" @click="showCreate = false">Cancel</Button>
+                    <Button @click="confirmCreate">Create</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { RiFlowChart, RiArrowRightUpLine, RiDeleteBinLine } from '@remixicon/vue'
+import { RiFlowChart, RiArrowRightUpLine, RiDeleteBinLine, RiAddLine } from '@remixicon/vue'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from '@/components/ui/dialog'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {
     Empty,
     EmptyContent,
@@ -88,12 +145,15 @@ import {
     EmptyTitle,
 } from '@/components/ui/empty'
 import { useWorkflowStore } from '@/stores/workflow'
+import type { Workflow } from '@/types'
 
 const router = useRouter()
 const store = useWorkflowStore()
 const loading = ref(true)
 const showCreate = ref(false)
+const showDelete = ref(false)
 const newName = ref('')
+const pendingDelete = ref<Workflow | null>(null)
 
 const workflows = computed(() => store.workflows)
 
@@ -113,7 +173,14 @@ async function confirmCreate() {
     router.push(`/editor/${wf.id}`)
 }
 
-async function deleteWorkflow(id: string) {
-    if (confirm('Delete this workflow?')) await store.remove(id)
+function openDelete(wf: Workflow) {
+    pendingDelete.value = wf
+    showDelete.value = true
+}
+
+async function confirmDelete() {
+    if (!pendingDelete.value) return
+    await store.remove(pendingDelete.value.id)
+    pendingDelete.value = null
 }
 </script>
