@@ -1,6 +1,9 @@
 # MiniNodes
 
 A lightweight, embeddable node-based workflow engine. MIT licensed.
+## Info
+
+MiniNodes is designed to be more user friendly, lighter and easier to extend than NodeRed or n8n.
 
 ## Stack
 
